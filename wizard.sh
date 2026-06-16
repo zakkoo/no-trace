@@ -10,12 +10,18 @@ bold=$'\033[1m'; yellow=$'\033[33m'; green=$'\033[32m'; reset=$'\033[0m'
 
 # --- Configuration ---------------------------------------------------------
 persistent_dir="$HOME/Persistent"
-bitbox_version="4.51.0"
-bitbox_appimage="BitBox-${bitbox_version}-x86_64.AppImage"
-bitbox_url="https://github.com/BitBoxSwiss/bitbox-wallet-app/releases/download/v${bitbox_version}/${bitbox_appimage}"
+bitbox_repo="https://github.com/BitBoxSwiss/bitbox-wallet-app"
 bitbox_checksum_url="https://bitbox.swiss/download/"
 bitbox_pubkey_url="https://bitbox.swiss/download/shiftcryptosec-509249B068D215AE.gpg.asc"
+# The signing-key fingerprint is the trust anchor: it is pinned here on purpose,
+# never fetched. If it were downloaded, an attacker who tampered with the app
+# could swap in their own key with a matching fingerprint and pass verification.
 bitbox_fingerprint="DD09E41309750EBFAE0DEF63509249B068D215AE"
+
+# These are resolved at runtime to the latest release (see ensure_bitbox_version).
+bitbox_version=""
+bitbox_appimage=""
+bitbox_url=""
 
 # Ask a yes/no question. Returns 0 for yes, 1 for no.
 ask() {
@@ -40,6 +46,32 @@ fetch_tor() {
     else
         curl -fsS --max-time 30 --socks5-hostname 127.0.0.1:9050 "$1"
     fi
+}
+
+# Print a URL's response headers over Tor (used to read a redirect target).
+headers_tor() {
+    if command -v torsocks >/dev/null; then
+        torsocks curl -fsSI --max-time 30 "$1"
+    else
+        curl -fsSI --max-time 30 --socks5-hostname 127.0.0.1:9050 "$1"
+    fi
+}
+
+# Resolve the latest BitBoxApp release once, and derive its file name and URLs.
+# GitHub's /releases/latest redirects to /releases/tag/v<latest>, which is the
+# latest stable (non-prerelease) version.
+ensure_bitbox_version() {
+    [[ -n "$bitbox_version" ]] && return 0
+    echo "Finding the latest BitBoxApp release..."
+    local v
+    v=$(headers_tor "$bitbox_repo/releases/latest" \
+        | grep -i '^location:' | grep -oE 'tag/v[0-9]+\.[0-9]+\.[0-9]+' \
+        | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) || true
+    [[ -n "$v" ]] || abort "could not determine the latest BitBoxApp version (is Tor connected?)."
+    bitbox_version="$v"
+    bitbox_appimage="BitBox-${v}-x86_64.AppImage"
+    bitbox_url="$bitbox_repo/releases/download/v${v}/${bitbox_appimage}"
+    echo "Latest BitBoxApp version: ${green}${bitbox_version}${reset}"
 }
 
 # Download a URL to a file over Tor, with a progress bar.
@@ -111,7 +143,8 @@ step_tails_uptodate() {
 
 step_download_bitbox() {
     echo
-    echo "${bold}Downloading the BitBoxApp ${bitbox_version}...${reset}"
+    echo "${bold}Downloading the BitBoxApp...${reset}"
+    ensure_bitbox_version
 
     [[ -d "$persistent_dir" ]] || \
         abort "Persistent Storage not found at $persistent_dir. Turn it on, unlock it, then run this again."
@@ -138,6 +171,7 @@ step_download_bitbox() {
 step_verify_bitbox() {
     echo
     echo "${bold}Verifying the BitBoxApp checksum...${reset}"
+    ensure_bitbox_version
 
     local file="$persistent_dir/$bitbox_appimage"
     [[ -s "$file" ]] || abort "$file not found. Run the download step first."
@@ -178,6 +212,7 @@ step_verify_bitbox() {
 step_verify_gpg() {
     echo
     echo "${bold}Verifying the BitBoxApp GPG signature...${reset}"
+    ensure_bitbox_version
 
     local file="$persistent_dir/$bitbox_appimage"
     local sig="$file.asc"
