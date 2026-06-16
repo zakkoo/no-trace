@@ -114,10 +114,15 @@ step_tails_uptodate() {
     echo
     echo "${bold}Checking that Tails is up to date...${reset}"
 
-    # Current version: Tails sets TAILS_VERSION_ID in /etc/os-release.
+    # Current version: Tails records it in /etc/amnesia/version (a version
+    # number, possibly followed by build details). Fall back to /etc/os-release.
     local current latest
-    current=$(. /etc/os-release 2>/dev/null && echo "${TAILS_VERSION_ID:-${VERSION_ID:-}}") || true
-    [[ -n "$current" ]] || abort "this does not look like Tails (no version in /etc/os-release)."
+    current=$(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' /etc/amnesia/version 2>/dev/null | head -1) || true
+    if [[ -z "$current" ]]; then
+        current=$(. /etc/os-release 2>/dev/null && printf '%s' "${TAILS_VERSION_ID:-${VERSION_ID:-}}") || true
+    fi
+    [[ -n "$current" ]] || \
+        abort "could not read your Tails version. Please run: cat /etc/amnesia/version"
     echo "You are running Tails ${current}."
 
     # Latest stable version, published by Tails and fetched over Tor.
