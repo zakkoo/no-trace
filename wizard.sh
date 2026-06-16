@@ -269,21 +269,24 @@ step_bitbox_udev() {
     fi
 
     echo
-    echo "Installing the BitBox udev rules. Enter your Tails administration password if asked."
-    # On Tails, sudo only works if an administration password was set on the
-    # Welcome Screen at startup.
-    if ! sudo true; then
-        abort "sudo is not available. Restart Tails and set an administration password on the Welcome Screen (expand 'Additional settings'), then run this again."
-    fi
-
-    sudo tee /etc/udev/rules.d/53-hid-bitbox02.rules >/dev/null <<'EOF'
+    echo "Installing the BitBox udev rules. You will be asked for your Tails"
+    echo "administration password ${bold}once${reset}."
+    # Run every root command in a SINGLE sudo call. Tails does not cache the
+    # sudo password between separate sudo invocations, so multiple sudo calls
+    # would prompt again and again. The script is passed as an argument (not on
+    # stdin) so sudo can still read the password from the terminal.
+    if ! sudo bash -c '
+cat > /etc/udev/rules.d/53-hid-bitbox02.rules <<"EOF"
 SUBSYSTEM=="usb", TAG+="uaccess", TAG+="udev-acl", SYMLINK+="bitbox02_%n", ATTRS{idVendor}=="03eb", ATTRS{idProduct}=="2403"
 EOF
-    sudo tee /etc/udev/rules.d/54-hid-bitbox02.rules >/dev/null <<'EOF'
+cat > /etc/udev/rules.d/54-hid-bitbox02.rules <<"EOF"
 KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="03eb", ATTRS{idProduct}=="2403", TAG+="uaccess", TAG+="udev-acl", SYMLINK+="bitbox02_%n"
 EOF
-    sudo udevadm control --reload
-    sudo udevadm trigger
+udevadm control --reload
+udevadm trigger
+'; then
+        abort "could not install the udev rules with sudo. Make sure you set an administration password on the Tails Welcome Screen at startup (expand 'Additional settings'), and that you enter it correctly."
+    fi
 
     echo "${green}BitBox udev rules installed (for this Tails session).${reset}"
 }
