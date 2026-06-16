@@ -256,8 +256,63 @@ step_verify_gpg() {
     fi
 }
 
+step_bitbox_udev() {
+    echo
+    echo "${bold}Connect your BitBox${reset}"
+    echo "Plug your BitBox into a USB port on this computer."
+    ask "Is your BitBox connected?" || abort "connect your BitBox, then run this wizard again."
+
+    # Non-fatal hint: is the BitBox visible on the USB bus yet? (03eb:2403)
+    if command -v lsusb >/dev/null && ! lsusb | grep -qi '03eb:2403'; then
+        echo "${yellow}Note: the BitBox was not detected on USB yet. Make sure it is"
+        echo "plugged in directly (not through a hub) and unlocked.${reset}"
+    fi
+
+    echo
+    echo "Installing the BitBox udev rules. Enter your Tails administration password if asked."
+    # On Tails, sudo only works if an administration password was set on the
+    # Welcome Screen at startup.
+    if ! sudo true; then
+        abort "sudo is not available. Restart Tails and set an administration password on the Welcome Screen (expand 'Additional settings'), then run this again."
+    fi
+
+    sudo tee /etc/udev/rules.d/53-hid-bitbox02.rules >/dev/null <<'EOF'
+SUBSYSTEM=="usb", TAG+="uaccess", TAG+="udev-acl", SYMLINK+="bitbox02_%n", ATTRS{idVendor}=="03eb", ATTRS{idProduct}=="2403"
+EOF
+    sudo tee /etc/udev/rules.d/54-hid-bitbox02.rules >/dev/null <<'EOF'
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="03eb", ATTRS{idProduct}=="2403", TAG+="uaccess", TAG+="udev-acl", SYMLINK+="bitbox02_%n"
+EOF
+    sudo udevadm control --reload
+    sudo udevadm trigger
+
+    echo "${green}BitBox udev rules installed (for this Tails session).${reset}"
+}
+
+step_launch() {
+    echo
+    echo "${bold}Final step${reset}"
+    ensure_bitbox_version
+
+    local file="$persistent_dir/$bitbox_appimage"
+    [[ -s "$file" ]] || abort "$file not found. Run the earlier steps first."
+
+    chmod +x "$file"
+    echo "Starting the BitBoxApp..."
+    # Launch detached so this terminal returns and the app keeps running.
+    nohup "$file" >/dev/null 2>&1 &
+
+    echo
+    echo "${bold}${yellow}One last thing you must do by hand, inside the BitBoxApp:${reset}"
+    echo "${yellow}  Enable the Tor proxy:${reset}"
+    echo "${yellow}    Settings  ->  Advanced settings  ->  Enable Tor proxy${reset}"
+    echo
+    echo "If no window appears, start it manually with:"
+    echo "  $file"
+    echo "${green}That's it — the wizard is done.${reset}"
+}
+
 # ---------------------------------------------------------------------------
 # Steps run in this order.
-STEPS=(step_greeting step_tails_uptodate step_download_bitbox step_verify_bitbox step_verify_gpg)
+STEPS=(step_greeting step_tails_uptodate step_download_bitbox step_verify_bitbox step_verify_gpg step_bitbox_udev step_launch)
 
 for step in "${STEPS[@]}"; do "$step"; done
