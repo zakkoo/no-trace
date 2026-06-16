@@ -42,6 +42,38 @@ abort() { echo; echo "${yellow}Stopped: $1${reset}"; exit 1; }
 # Require a command to be available.
 need() { command -v "$1" >/dev/null || abort "'$1' is not installed."; }
 
+# Work out how to route SSH through Tor.
+#
+# Using 'ssh -F <ourconfig>' makes ssh IGNORE the system /etc/ssh/ssh_config,
+# which on Tails is what forces SSH through Tor. Without that, ssh connects
+# directly and the Tails firewall refuses it ("Connection refused"). So we put
+# the Tor routing into our own config via a ProxyCommand.
+detect_tor_proxy() {
+    # Best: reuse exactly what Tails already uses system-wide.
+    local sys
+    sys=$(grep -iE '^[[:space:]]*ProxyCommand[[:space:]]' /etc/ssh/ssh_config 2>/dev/null \
+          | head -1 \
+          | sed -E 's/^[[:space:]]*ProxyCommand[[:space:]]+//I') || true
+    if [[ -n "$sys" ]]; then
+        printf '%s\n' "$sys"
+        return 0
+    fi
+    # Fallbacks: route through Tor's SOCKS proxy on 127.0.0.1:9050.
+    if command -v nc >/dev/null && nc -h 2>&1 | grep -q -- '-X'; then
+        printf '%s\n' 'nc -X 5 -x 127.0.0.1:9050 %h %p'        # OpenBSD netcat
+        return 0
+    fi
+    if command -v torsocks >/dev/null && command -v nc >/dev/null; then
+        printf '%s\n' 'torsocks nc %h %p'
+        return 0
+    fi
+    if command -v ncat >/dev/null; then
+        printf '%s\n' 'ncat --proxy 127.0.0.1:9050 --proxy-type socks5 %h %p'
+        return 0
+    fi
+    return 1
+}
+
 # ---------------------------------------------------------------------------
 
 step_greeting() {
@@ -129,9 +161,21 @@ step_write_config() {
     echo "${bold}Step 4 — Writing the SSH config into Persistent...${reset}"
 
     if [[ -f "$config_file" ]]; then
-        ask "An SSH config already exists. Overwrite it?" \
-            || { echo "Keeping the existing config."; return 0; }
+        if grep -qi 'ProxyCommand' "$config_file"; then
+            ask "An SSH config already exists (with Tor routing). Overwrite it?" \
+                || { echo "Keeping the existing config."; return 0; }
+        else
+            echo "${yellow}Your existing config has no Tor routing — that is why the"
+            echo "connection was refused. It needs to be updated to work on Tails.${reset}"
+            ask "Update the config now?" \
+                || { echo "Keeping the existing config (SSH will keep failing)."; return 0; }
+        fi
     fi
+
+    # Find how to send the connection through Tor (see detect_tor_proxy above).
+    local proxy
+    proxy=$(detect_tor_proxy) || abort "could not find a way to route SSH through Tor (no ProxyCommand in /etc/ssh/ssh_config, and no nc/torsocks/ncat available)."
+    echo "Routing SSH through Tor with: ${proxy}"
 
     # Uses ssh.github.com on port 443: GitHub supports SSH over the HTTPS port,
     # which is more reliable in restricted / Tor-routed environments than the
@@ -141,6 +185,7 @@ Host github.com
     HostName ssh.github.com
     User git
     Port 443
+    ProxyCommand $proxy
     IdentityFile $key_file
     IdentitiesOnly yes
     UserKnownHostsFile $known_hosts
