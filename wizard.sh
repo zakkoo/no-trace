@@ -258,17 +258,7 @@ step_verify_gpg() {
 
 step_bitbox_udev() {
     echo
-    echo "${bold}Connect your BitBox${reset}"
-    echo "Plug your BitBox into a USB port on this computer."
-    ask "Is your BitBox connected?" || abort "connect your BitBox, then run this wizard again."
-
-    # Non-fatal hint: is the BitBox visible on the USB bus yet? (03eb:2403)
-    if command -v lsusb >/dev/null && ! lsusb | grep -qi '03eb:2403'; then
-        echo "${yellow}Note: the BitBox was not detected on USB yet. Make sure it is"
-        echo "plugged in directly (not through a hub) and unlocked.${reset}"
-    fi
-
-    echo
+    echo "${bold}Setting up BitBox device access${reset}"
     echo "Installing the BitBox udev rules. You will be asked for your Tails"
     echo "administration password ${bold}once${reset}."
     # Run every root command in a SINGLE sudo call. Tails does not cache the
@@ -298,6 +288,15 @@ step_launch() {
 
     local file="$persistent_dir/$bitbox_appimage"
     [[ -s "$file" ]] || abort "$file not found. Run the earlier steps first."
+
+    echo "Now plug your BitBox into a USB port on this computer."
+    ask "Is your BitBox connected?" || abort "connect your BitBox, then run this wizard again."
+
+    # Non-fatal hint: is the BitBox visible on the USB bus yet? (03eb:2403)
+    if command -v lsusb >/dev/null && ! lsusb | grep -qi '03eb:2403'; then
+        echo "${yellow}Note: the BitBox was not detected on USB yet. Make sure it is"
+        echo "plugged in directly (not through a hub) and unlocked.${reset}"
+    fi
 
     chmod +x "$file"
     echo "Starting the BitBoxApp..."
