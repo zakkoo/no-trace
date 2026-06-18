@@ -78,7 +78,9 @@ It runs these steps in order, stopping with a clear message if anything's wrong:
 
 ## The manual alternative
 
-Everything the script does, by hand. Be alone with no listening devices, boot
+Everything the script does, you can do it by hand. 
+
+Be alone with no listening devices, boot
 Tails (Persistent Storage unlocked, admin password set), connect to Tor, then:
 
 ```sh
