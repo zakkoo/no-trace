@@ -1,0 +1,1 @@
+fixture message for gpg tests

@@ -55,8 +55,8 @@ It runs these steps in order, stopping with a clear message if anything's wrong:
 1. **Privacy check** — confirms you're alone, no devices nearby that could listen in.
 2. **Tails up-to-date** — compares your version against the latest stable, over Tor.
 3. **Download** — resolves the latest BitBoxApp release and downloads the AppImage into `~/Persistent/`.
-4. **Checksum** — checks it against the official SHA-256 from [bitbox.swiss/download](https://bitbox.swiss/download/).
-5. **GPG signature** — verifies the signature is good *and* made by the pinned key `DD09 E413 0975 0EBF AE0D EF63 5092 49B0 68D2 15AE`.
+4. **Checksum** — checks it against the SHA-256 from the GitHub release (then the BitBox download page, then a paste prompt if both are unreachable).
+5. **GPG signature** — verifies the signature is good *and* made by the pinned key `DD09 E413 0975 0EBF AE0D EF63 5092 49B0 68D2 15AE`. The public key is fetched from `keys.openpgp.org`, with a copy bundled in `wizard.sh` if the keyserver is unreachable.
 6. **Device rules** — installs the BitBox `udev` rules (asks for your password once).
 7. **Launch** — you plug in the BitBox, the app starts, and it reminds you to enable the Tor proxy.
 
@@ -74,6 +74,16 @@ It runs these steps in order, stopping with a clear message if anything's wrong:
   administration password on the Welcome Screen. Reboot and set one.
 - **"Could not check online…" / download failed** — you're not on Tor yet.
   Finish the Tor assistant, then re-run.
+- **Checksum paste prompt** — automatic fetch from GitHub (and the BitBox site) failed.
+  Open [bitbox.swiss/download](https://bitbox.swiss/download/) in Tor Browser, click *Show checksums*, paste the AppImage SHA-256. A mismatch still means **stop**.
+- **GPG signature did NOT verify** — do not run the AppImage. There is no safe skip.
+  Delete `BitBox-*.AppImage` and `BitBox-*.AppImage.asc` from `~/Persistent`, then run the wizard again. Or follow [The manual alternative](#the-manual-alternative). If a fresh download still fails, stop and contact BitBox support.
+- **"could not import the BitBox signing key"** — keyserver and the bundled key both failed.
+  In Tor Browser, save one of
+  `https://keys.openpgp.org/vks/v1/by-fingerprint/DD09E41309750EBFAE0DEF63509249B068D215AE`
+  or
+  `https://bitbox.swiss/download/shiftcryptosec-509249B068D215AE.gpg.asc`,
+  replace `wizard.sh` with a fresh copy from this repo, and re-run.
 - **BitBox not detected** — plug it in directly (no hub) and unlock it.
 
 ## The manual alternative
@@ -106,8 +116,8 @@ torsocks curl -fL -o "$APP"      "$BASE/$APP"
 torsocks curl -fL -o "$APP.asc"  "$BASE/$APP.asc"
 ```
 
-**4. Verify the SHA-256** — at <https://bitbox.swiss/download/> click *Show
-checksums* and copy the AppImage value:
+**4. Verify the SHA-256** — copy the AppImage digest from the GitHub release
+asset, or at <https://bitbox.swiss/download/> click *Show checksums*:
 
 ```sh
 echo "<paste-the-64-hex-checksum>  $APP" | sha256sum -c   # must print: OK
@@ -118,13 +128,17 @@ Not `OK`? **Stop** — delete it and start over.
 **5. Verify the GPG signature:**
 
 ```sh
-torsocks curl -fsS https://bitbox.swiss/download/shiftcryptosec-509249B068D215AE.gpg.asc \
+torsocks curl -fsS \
+  https://keys.openpgp.org/vks/v1/by-fingerprint/DD09E41309750EBFAE0DEF63509249B068D215AE \
   | gpg --import
+# If the keyserver is unreachable, open this in Tor Browser and import the file:
+# https://bitbox.swiss/download/shiftcryptosec-509249B068D215AE.gpg.asc
 gpg --verify "$APP.asc" "$APP"
 ```
 
 Confirm a **Good signature** from fingerprint
 `DD09 E413 0975 0EBF AE0D EF63 5092 49B0 68D2 15AE`. Anything else: **stop**.
+Delete the AppImage and `.asc` and start over. There is no safe skip.
 
 **6. Install the BitBox `udev` rules** (asks for your password once — Tails
 doesn't cache it, so run it as a single `sudo` call):
@@ -158,6 +172,8 @@ chmod +x "$APP"
   checked before the AppImage is ever made executable.
 - **The key fingerprint is the only pinned value** — the trust anchor, never
   downloaded. The version, checksum, and signature are fetched fresh each run.
+  A copy of the public key is bundled in `wizard.sh` only as a fallback when
+  `keys.openpgp.org` cannot be reached; it is still checked against the pin.
 - **GPG uses a throwaway keyring**, so your own GnuPG setup is untouched.
 - **All traffic goes through Tor**, as it must on Tails.
 - This verifies the BitBoxApp — it doesn't replace verifying your device

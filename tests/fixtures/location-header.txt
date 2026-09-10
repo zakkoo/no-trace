@@ -1,0 +1,2 @@
+HTTP/2 302
+location: https://github.com/BitBoxSwiss/bitbox-wallet-app/releases/tag/v4.51.4

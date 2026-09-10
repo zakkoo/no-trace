@@ -1,0 +1,15 @@
+name: test-macos
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GnuPG
+        run: brew install gnupg
+      - name: Run macOS verification suite
+        run: bash tests/macos/run.sh

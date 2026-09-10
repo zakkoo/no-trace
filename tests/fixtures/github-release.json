@@ -1,0 +1,13 @@
+{
+  "tag_name": "v4.51.4",
+  "assets": [
+    {
+      "name": "BitBox-4.51.4-x86_64.AppImage",
+      "digest": "sha256:4a71cfeec7a42e95907dd08faad1032d6996364a10d77c3c06c9a6df4ebd3ba7"
+    },
+    {
+      "name": "BitBox-4.51.4-x86_64.AppImage.asc",
+      "digest": "sha256:b394ddf835cd8bcd3636a571c425b97c9e4661b6aac2230d4e7fa8867321859f"
+    }
+  ]
+}
