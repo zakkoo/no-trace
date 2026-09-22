@@ -1,4 +1,4 @@
-# mytool-tailsworkflow
+# no-trace
 
 A privacy-focused workflow for using your BitBox hardware wallet from an amnesic
 [Tails OS](https://tails.net) session. Leave no traces. Don't trust, verify.
